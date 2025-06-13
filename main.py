@@ -11,7 +11,7 @@ import gdown
 
 app = FastAPI()
 
-# Allow CORS for local dev or front-end app
+# Allow CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,9 +48,6 @@ def load_models():
         brain_classification_model = tf.keras.models.load_model(MODEL_PATHS['brain_classification']['path'])
         brain_segmentation_model = tf.keras.models.load_model(MODEL_PATHS['brain_segmentation']['path'])
         skin_model = tf.keras.models.load_model(MODEL_PATHS['skin']['path'])
-        print("Input shape:", brain_classification_model.input_shape)
-        print("Model summary:")
-        brain_classification_model.summary()
         print("Models loaded successfully.")
         return brain_classification_model, brain_segmentation_model, skin_model
     except Exception as e:
@@ -64,7 +61,6 @@ def preprocess_image(image_bytes, img_size=(28, 28)):
     image_array = np.array(image) / 255.0  # Normalize to [0,1]
     image_array = np.expand_dims(image_array, axis=0)  # Add batch dimension
     return image_array.astype(np.float32)
-
 
 # === Step 4: Routes ===
 download_models()
@@ -90,9 +86,9 @@ async def scan(
     results = {}
 
     if diseaseType == "Brain Tumor" and brain_classification_model and brain_segmentation_model:
-        processed_image = preprocess_image(image_bytes, (28, 28))
-
-        segmentation_output = brain_segmentation_model.predict(processed_image)
+        # أول حاجة نعمل Segmentation (بحجم 128x128)
+        segmentation_input = preprocess_image(image_bytes, (128, 128))
+        segmentation_output = brain_segmentation_model.predict(segmentation_input)
         mask = (segmentation_output[0, :, :, 0] * 255).astype(np.uint8)
         seg_image = Image.fromarray(mask, 'L')
         buf = io.BytesIO()
@@ -100,7 +96,9 @@ async def scan(
         encoded_mask = base64.b64encode(buf.getvalue()).decode('utf-8')
         results["segmentation_image_base64"] = encoded_mask
 
-        prediction = brain_classification_model.predict(processed_image)
+        # بعد كده Classification (بحجم 28x28)
+        classification_input = preprocess_image(image_bytes, (28, 28))
+        prediction = brain_classification_model.predict(classification_input)
         class_names = ["Glioma", "Meningioma", "No tumor", "Pituitary tumor"]
         idx = np.argmax(prediction)
         results["diagnosis"] = class_names[idx]
@@ -108,10 +106,11 @@ async def scan(
 
     elif diseaseType == "Skin Cancer" and skin_model:
         processed_image = preprocess_image(image_bytes, (28, 28))
-
         prediction = skin_model.predict(processed_image)
-        class_names = ["Actinic keratoses", "Basal cell carcinoma", "Benign keratosis-like lesions", 
-                       "Dermatofibroma", "Melanoma", "Melanocytic nevi", "Vascular lesions"]
+        class_names = [
+            "Actinic keratoses", "Basal cell carcinoma", "Benign keratosis-like lesions", 
+            "Dermatofibroma", "Melanoma", "Melanocytic nevi", "Vascular lesions"
+        ]
         idx = np.argmax(prediction)
         results["diagnosis"] = class_names[idx]
         results["confidence"] = f"{prediction[0][idx]*100:.2f}%"
@@ -120,7 +119,4 @@ async def scan(
         return JSONResponse(status_code=400, content={"error": "Invalid disease type or model not loaded"})
 
     print("Results:", results)
-    print(brain_classification_model.input_shape)
-
-
     return results
