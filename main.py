@@ -48,6 +48,9 @@ def load_models():
         brain_classification_model = tf.keras.models.load_model(MODEL_PATHS['brain_classification']['path'])
         brain_segmentation_model = tf.keras.models.load_model(MODEL_PATHS['brain_segmentation']['path'])
         skin_model = tf.keras.models.load_model(MODEL_PATHS['skin']['path'])
+        print("Input shape:", brain_classification_model.input_shape)
+        print("Model summary:")
+        brain_classification_model.summary()
         print("Models loaded successfully.")
         return brain_classification_model, brain_segmentation_model, skin_model
     except Exception as e:
@@ -122,5 +125,7 @@ async def scan(
         return JSONResponse(status_code=400, content={"error": "Invalid disease type or model not loaded"})
 
     print("Results:", results)
+    print(brain_classification_model.input_shape)
+
 
     return results
