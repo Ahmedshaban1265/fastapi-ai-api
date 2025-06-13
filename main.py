@@ -58,18 +58,13 @@ def load_models():
         return None, None, None
 
 # === Step 3: Preprocessing ===
-def preprocess_image(image_bytes, size):
-    image = Image.open(io.BytesIO(image_bytes))
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-    image = image.resize(size)
-    img_array = np.array(image) / 255.0
-    if len(img_array.shape) == 2:
-        img_array = np.stack((img_array,) * 3, axis=-1)
-    elif img_array.shape[2] == 4:
-        img_array = img_array[:, :, :3]
-    img_array = np.expand_dims(img_array, axis=0)
-    return img_array
+def preprocess_image(image_bytes, img_size=(28, 28)):
+    image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+    image = image.resize(img_size)
+    image_array = np.array(image) / 255.0  # Normalize to [0,1]
+    image_array = np.expand_dims(image_array, axis=0)  # Add batch dimension
+    return image_array.astype(np.float32)
+
 
 # === Step 4: Routes ===
 download_models()
@@ -95,7 +90,7 @@ async def scan(
     results = {}
 
     if diseaseType == "Brain Tumor" and brain_classification_model and brain_segmentation_model:
-        processed_image = preprocess_image(image_bytes, (128, 128))
+        processed_image = preprocess_image(image_bytes, (28, 28))
 
         segmentation_output = brain_segmentation_model.predict(processed_image)
         mask = (segmentation_output[0, :, :, 0] * 255).astype(np.uint8)
