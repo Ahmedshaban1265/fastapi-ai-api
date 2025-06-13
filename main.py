@@ -121,4 +121,6 @@ async def scan(
     else:
         return JSONResponse(status_code=400, content={"error": "Invalid disease type or model not loaded"})
 
+    print("Results:", results)
+
     return results
